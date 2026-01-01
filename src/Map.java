@@ -158,7 +158,7 @@ public class Map implements Map2D {
 		if (y < 0) y += h;
 		return y;
 	}
-								///////////////// Algorithms //////////////////
+									///////////////// Algorithms //////////////////
 	/**
 	 * Fill the connected component of p in the new color (new_v).
 	 * Note: the connected component of p are all the pixels in the map with the same "color" of map[p] which are connected to p.
