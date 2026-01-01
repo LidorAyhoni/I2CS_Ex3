@@ -137,7 +137,7 @@ public class Map implements Map2D {
 	 */
 	@Override
 	public void setCyclic(boolean cy){ _cyclicFlag = cy; }
-								///////////////// Internal functions //////////////////
+									///////////////// Internal functions //////////////////
 	private int[][] neighbors4(int x, int y) {
 		return new int[][]{
 				{x, y - 1}, // UP
