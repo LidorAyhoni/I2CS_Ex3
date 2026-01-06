@@ -137,12 +137,12 @@ public class Map implements Map2D {
 	 */
 	@Override
 	public void setCyclic(boolean cy){ _cyclicFlag = cy; }
-									///////////////// Internal functions //////////////////
+	///////////////// Internal functions //////////////////
 	private int[][] neighbors4(int x, int y) {
 		return new int[][]{
-				{x, y - 1}, // UP
+				{x, y + 1}, // UP
 				{x - 1, y}, // LEFT
-				{x, y + 1}, // DOWN
+				{x, y - 1}, // DOWN
 				{x + 1, y}  // RIGHT
 		};
 	}
@@ -158,15 +158,7 @@ public class Map implements Map2D {
 		if (y < 0) y += h;
 		return y;
 	}
-									///////////////// Algorithms //////////////////
-	/**
-	 * Fill the connected component of p in the new color (new_v).
-	 * Note: the connected component of p are all the pixels in the map with the same "color" of map[p] which are connected to p.
-	 * Note: two pixels (p1,p2) are connected if there is a path between p1 and p2 with the same color (of p1 and p2).
-	 * @param xy the pixel to start from.
-	 * @param new_v - the new "color" to be filled in p's connected component.
-	 * @return the number of "filled" pixels.
-	 */
+	///////////////// Algorithms //////////////////
 	@Override
 	public int fill(Pixel2D xy, int new_v) {
 		if (xy == null) throw new RuntimeException("start==null");
@@ -205,12 +197,6 @@ public class Map implements Map2D {
 		}
 		return count;
 	}
-	/**
-	 * @param p1 first coordinate (start point).
-	 * @param p2 second coordinate (end point).
-	 * @param obsColor the color which is addressed as an obstacle.
-	 * @return the shortest path as an array of consecutive pixels, if none - returns null.
-	 */
 	@Override
 	public Pixel2D[] shortestPath(Pixel2D p1, Pixel2D p2, int obsColor) {
 		if (p1 == null || p2 == null) throw new RuntimeException("null arg");
@@ -262,14 +248,6 @@ public class Map implements Map2D {
 		}
 		return path;
 	}
-	/**
-	 * Compute a new map (with the same dimension as this map) with the
-	 * shortest path distance (obstacle avoiding) from the start point.
-	 * None accessible entries should be marked -1.
-	 * @param start the source (starting) point
-	 * @param obsColor the color representing obstacles
-	 * @return a new map with all the shortest path distances from the starting point to each entry in this map.
-	 */
 	@Override
 	public Map2D allDistance(Pixel2D start, int obsColor) {
 		if (start == null) throw new RuntimeException("start==null");
