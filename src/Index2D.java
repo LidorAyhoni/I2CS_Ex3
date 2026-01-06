@@ -42,7 +42,7 @@ public class Index2D implements Pixel2D {
         return __y;
     }
     /**
-     * This method computes the 2D (Euclidean) distance beteen this pixel and p2 pixel, i.e., (Math.sqrt(dx*dx+dy*dy))
+     * This method computes the 2D (Euclidean) distance between this pixel and p2 pixel, i.e., (Math.sqrt(dx*dx+dy*dy))
      * @throws RuntimeException if p2==null.
      * @return the 2D Euclidean distance between the pixels.
      */
@@ -70,5 +70,14 @@ public class Index2D implements Pixel2D {
             ans = (this.distance2D(p)==0);
         }
         return ans;
+    }
+    /**
+     * Returns a hash code consistent with {@link #equals(Object)}.
+     * Enables usage of Index2D in hash-based collections.
+     * @return hash code of this index
+     */
+    @Override
+    public int hashCode() {
+        return 31 * __x + __y;
     }
 }
