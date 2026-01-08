@@ -12,21 +12,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * PAC-MAN v11 - SAFETY FIRST, EAT FAST (NEAREST), SMART POWER + POWER LOCK + NO POWER FIRST 5s
+ * Ex3 Pac-Man algorithm (v11 cleaned).
  *
- * Improvement:
- * - Better "nearest target" selection:
- *   BFS finds MIN distance, but if multiple targets share same min distance, choose best by:
- *   (1) safer from danger ghosts, (2) more exits, (3) less looping.
+ * <p>Priorities:
+ * <ol>
+ *   <li><b>Escape</b> when danger ghosts are near (maximize distance).</li>
+ *   <li><b>Eat fast</b>: move toward the nearest target using BFS shortest path.</li>
+ *   <li><b>Tie-break smartly</b>: when multiple targets have equal shortest distance,
+ *       choose the safer / more open / less loopy option.</li>
+ * </ol>
  *
- * Rules:
- * 1) POWER LOCK: while ghosts are eatable (powerMode==true), Pac-Man will NOT step on GREEN.
- * 2) NO POWER FIRST 5s: during the first ~5 seconds (first 50 ticks), Pac-Man will NOT step on GREEN.
- *
- * Priorities:
- * 1) Maximize distance from danger (non-eatable) ghosts when they are near.
- * 2) Eat pellets: prefer nearest pellet (BFS shortest path) with smart tie-break.
- * 3) Do it as fast as possible.
+ * <p>Power policy:
+ * <ul>
+ *   <li><b>POWER LOCK</b>: while ghosts are eatable (power mode), do not step on GREEN.</li>
+ *   <li><b>NO POWER FIRST</b>: do not step on GREEN during the first ~5 seconds.</li>
+ * </ul>
  */
 public class Ex3Algo implements PacManAlgo {
 	private int _count;
@@ -34,45 +34,60 @@ public class Ex3Algo implements PacManAlgo {
 	private boolean _inited = false;
 	private int DOT, POWER;
 
+	/** Detected wall value (stable). */
 	private int baseWallValue = Integer.MIN_VALUE;
 
+	/** Last position and direction (used for reverse-avoid and "keep direction" bias). */
 	private int lastX = Integer.MIN_VALUE, lastY = Integer.MIN_VALUE;
 	private int lastDir = Game.STAY;
 
+	/** Counts consecutive ticks where Pac-Man didn't move. */
 	private int stuckCount = 0;
 
 	// ======= BEHAVIOR KNOBS =======
-	private static final int DANGER_TRIGGER = 6;
+
+	/** If nearest danger ghost distance <= this -> go into escape mode. */
+	private static final int DANGER_TRIGGER = 7;
+
+	/** Avoid stepping into cells that are within this distance to a danger ghost (if possible). */
 	private static final int HARD_AVOID = 2;
 
-	// When NOT in power mode, take a POWER only if it's "worth it"
-	private static final int POWER_TAKE_IF_DIST_LE = 2;      // very close -> ok
-	private static final int POWER_PREFER_IF_DANGER_LE = 5;  // danger near -> power becomes valuable
+	/** If POWER is this close, allow taking it (when not blocked by policy). */
+	private static final int POWER_TAKE_IF_DIST_LE = 2;
 
-	// Opening
+	/** If danger is this close, POWER becomes valuable. */
+	private static final int POWER_PREFER_IF_DANGER_LE = 5;
+
+	/** Small opening phase: start moving to avoid idling. */
 	private static final int OPENING_STEPS = 25;
 
-	// ======= no green in first 5 seconds =======
-	// Assumption: ~10 ticks per second => 5s ~= 50 ticks
-	private static final int NO_POWER_FIRST_TICKS = 100;
+	/**
+	 * Block GREEN for first ~10 seconds.
+	 * Assumption: ~10 ticks/sec => 10 sec ≈ 100 ticks.
+	 */
+	private static final int NO_POWER_FIRST_TICKS = 50;
 
-	// Loop memory
+	/** Memory of recent positions to break loops. */
 	private static final int LOOP_MEM = 12;
 	private final ArrayDeque<Long> lastPositions = new ArrayDeque<>();
-
-	private static final boolean DEBUG = false;
 
 	public Ex3Algo() { _count = 0; }
 
 	@Override
 	public String getInfo() {
-		return "PacMan v11: escape-first, eat nearest fast (better nearest), smart power + POWER LOCK + NO GREEN first 5s.";
+		return "PacMan v11 (clean): escape-first, eat nearest fast (smart tie-break), smart power + POWER LOCK + NO GREEN first 5s.";
 	}
 
+	/**
+	 * Main decision function called each tick by the game.
+	 *
+	 * @param game game API
+	 * @return movement direction (Game.UP/DOWN/LEFT/RIGHT/STAY)
+	 */
 	@Override
 	public int move(PacmanGame game) {
 		_count++;
-		int code = 0;
+		final int code = 0;
 
 		int[][] b = game.getGame(code);
 		if (!_inited) initColors(code);
@@ -88,24 +103,16 @@ public class Ex3Algo implements PacManAlgo {
 		else stuckCount = 0;
 
 		GhostCL[] ghosts = game.getGhosts(code);
-
 		pushPos(px, py);
 
-		// power mode = at least one ghost has remainTimeAsEatable > 0
-		boolean powerMode = false;
-		if (ghosts != null) {
-			for (GhostCL g : ghosts) {
-				if (g == null) continue;
-				if (g.remainTimeAsEatable(code) > 0) { powerMode = true; break; }
-			}
-		}
+		boolean powerMode = isPowerMode(ghosts, code);
 
-		// Block green if:
-		// 1) powerMode is active (POWER LOCK), OR
-		// 2) first 5 seconds of the game
+		// Block GREEN if:
+		// 1) power mode active (POWER LOCK), OR
+		// 2) first ~5 seconds
 		boolean blockPowerTiles = powerMode || (_count <= NO_POWER_FIRST_TICKS);
 
-		// Opening move: just start moving (but still legal)
+		// Opening: just start moving (still obeys passable rules)
 		if (_count <= OPENING_STEPS) {
 			int op = openingMove(px, py, b, blockPowerTiles, ghosts, code);
 			if (op != Game.STAY) {
@@ -117,7 +124,7 @@ public class Ex3Algo implements PacManAlgo {
 		int chosen;
 
 		if (powerMode) {
-			// While protected: eat DOT fast (and POWER tiles are blocked)
+			// While protected: clear regular dots quickly (GREEN is blocked anyway)
 			chosen = bfsToNearestValueSmart(px, py, b, DOT, blockPowerTiles, ghosts, code);
 			if (chosen == Game.STAY) chosen = anyLegalMove(px, py, b, blockPowerTiles, ghosts, code);
 		} else {
@@ -132,12 +139,11 @@ public class Ex3Algo implements PacManAlgo {
 
 		if (chosen == Game.STAY) chosen = anyLegalMove(px, py, b, blockPowerTiles, ghosts, code);
 
+		// loop-breaking + stuck handling
 		chosen = breakLoopIfNeeded(px, py, b, chosen, blockPowerTiles, ghosts, code);
+		if (stuckCount >= 3) chosen = forceDifferentLegal(px, py, b, chosen, blockPowerTiles, ghosts, code);
 
-		if (stuckCount >= 3) {
-			chosen = forceDifferentLegal(px, py, b, chosen, blockPowerTiles, ghosts, code);
-		}
-
+		// avoid reversing direction if possible
 		chosen = applyNoReverse(px, py, b, chosen, blockPowerTiles, ghosts, code);
 
 		remember(px, py, chosen);
@@ -146,6 +152,10 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== PRIORITY 1: ESCAPE =====================
 
+	/**
+	 * Choose the move that maximizes distance from the nearest danger (non-eatable) ghost.
+	 * Uses a hard-avoid threshold when possible; relaxes if trapped.
+	 */
 	private int escapeMove(int px, int py, int[][] b, boolean blockPowerTiles,
 						   GhostCL[] ghosts, int code, int curThreat) {
 		int[] dirs = {Game.UP, Game.LEFT, Game.DOWN, Game.RIGHT};
@@ -157,50 +167,47 @@ public class Ex3Algo implements PacManAlgo {
 		for (int d : dirs) {
 			int nx = stepX(px, d, b);
 			int ny = stepY(py, d, b);
-
 			if (!passable(nx, ny, b, blockPowerTiles, ghosts, code)) continue;
 
 			int nt = minBfsDistToDangerGhost(nx, ny, b, ghosts, code, blockPowerTiles);
 			if (nt <= HARD_AVOID && curThreat > HARD_AVOID) continue;
 
-			int score = 0;
-			score += safeVal(nt) * 2000;
-			score += countExits(nx, ny, b, blockPowerTiles, ghosts, code) * 120;
-			if (isRecentPos(nx, ny)) score -= 300;
-			if (d == lastDir) score += 40;
+			int score =
+					safeVal(nt) * 2000 +
+							countExits(nx, ny, b, blockPowerTiles, ghosts, code) * 120 +
+							(d == lastDir ? 40 : 0) +
+							(isRecentPos(nx, ny) ? -300 : 0);
 
 			if (score > bestScore) {
 				bestScore = score;
 				bestDir = d;
 			}
 		}
-
 		if (bestDir != Game.STAY) return bestDir;
 
 		// Pass 2: relax hard avoid (if trapped)
 		for (int d : dirs) {
 			int nx = stepX(px, d, b);
 			int ny = stepY(py, d, b);
-
 			if (!passable(nx, ny, b, blockPowerTiles, ghosts, code)) continue;
 
 			int nt = minBfsDistToDangerGhost(nx, ny, b, ghosts, code, blockPowerTiles);
 
-			int score = safeVal(nt) * 2000
-					+ countExits(nx, ny, b, blockPowerTiles, ghosts, code) * 120;
-
-			if (isRecentPos(nx, ny)) score -= 300;
-			if (d == lastDir) score += 40;
+			int score =
+					safeVal(nt) * 2000 +
+							countExits(nx, ny, b, blockPowerTiles, ghosts, code) * 120 +
+							(d == lastDir ? 40 : 0) +
+							(isRecentPos(nx, ny) ? -300 : 0);
 
 			if (score > bestScore) {
 				bestScore = score;
 				bestDir = d;
 			}
 		}
-
 		return bestDir;
 	}
 
+	/** Clamp distance to a reasonable range for scoring. */
 	private int safeVal(int dist) {
 		if (dist == Integer.MAX_VALUE) return 50;
 		return Math.min(dist, 50);
@@ -208,9 +215,12 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== PRIORITY 2+3: EAT FAST (NEAREST) =====================
 
+	/**
+	 * Choose the nearest target type (DOT vs POWER) using BFS distance.
+	 * Default prefers DOT; allows POWER only when strategically valuable.
+	 */
 	private int eatFastMove(int px, int py, int[][] b, boolean blockPowerTiles,
 							GhostCL[] ghosts, int code, int curThreat) {
-
 		int dotDist = nearestTargetDist(px, py, b, DOT, blockPowerTiles, ghosts, code);
 		int powDist = nearestTargetDist(px, py, b, POWER, blockPowerTiles, ghosts, code);
 
@@ -221,11 +231,7 @@ public class Ex3Algo implements PacManAlgo {
 		if (dotDist == Integer.MAX_VALUE) return bfsToNearestValueSmart(px, py, b, POWER, blockPowerTiles, ghosts, code);
 		if (powDist == Integer.MAX_VALUE) return bfsToNearestValueSmart(px, py, b, DOT, blockPowerTiles, ghosts, code);
 
-		boolean shouldTakePower =
-				dangerNear ||
-						powerVeryClose ||
-						(powDist + 2 < dotDist);
-
+		boolean shouldTakePower = dangerNear || powerVeryClose || (powDist + 2 < dotDist);
 		int target = shouldTakePower ? POWER : DOT;
 
 		int dir = bfsToNearestValueSmart(px, py, b, target, blockPowerTiles, ghosts, code);
@@ -238,28 +244,22 @@ public class Ex3Algo implements PacManAlgo {
 	// ===================== BETTER NEAREST (BFS + TIE-BREAK) =====================
 
 	/**
-	 * BFS to nearest target. If multiple targets exist at the same minimal distance,
-	 * pick the one that is:
-	 * 1) safer from danger ghosts (bigger minBfsDistToDangerGhost),
-	 * 2) has more exits,
-	 * 3) is less likely to loop (avoid recent positions).
+	 * BFS to nearest target value (shortest path in steps).
+	 * If there are multiple targets at the same minimal distance, choose the best by:
+	 * <ol>
+	 *   <li>Safer from danger ghosts (larger min BFS distance).</li>
+	 *   <li>More exits (less likely to get trapped).</li>
+	 *   <li>Avoid recent positions (reduce looping).</li>
+	 * </ol>
 	 *
-	 * Returns the FIRST MOVE direction.
+	 * @return the first move direction toward the selected best target, or {@link Game#STAY}.
 	 */
 	private int bfsToNearestValueSmart(int px, int py, int[][] b, int targetValue,
 									   boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		if (blockPowerTiles && targetValue == POWER) return Game.STAY;
 
 		int w = b.length, h = b[0].length;
-
-		// quick existence check (cheap)
-		boolean has = false;
-		for (int x = 0; x < w && !has; x++) {
-			for (int y = 0; y < h; y++) {
-				if (b[x][y] == targetValue) { has = true; break; }
-			}
-		}
-		if (!has) return Game.STAY;
+		if (!boardHasValue(b, targetValue)) return Game.STAY;
 
 		boolean[][] vis = new boolean[w][h];
 		int[][] firstDir = new int[w][h];
@@ -280,15 +280,14 @@ public class Ex3Algo implements PacManAlgo {
 		int[] dirs = {Game.UP, Game.LEFT, Game.DOWN, Game.RIGHT};
 
 		int foundDist = Integer.MAX_VALUE;
-		ArrayList<int[]> candidates = new ArrayList<>(); // each: {x,y}
+		ArrayList<int[]> candidates = new ArrayList<>();
 
 		while (!q.isEmpty()) {
 			int[] cur = q.poll();
 			int cx = cur[0], cy = cur[1];
 			int cd = dist[cx][cy];
 
-			// once we've found candidates at minimal distance, stop expanding deeper layers
-			if (cd > foundDist) break;
+			if (cd > foundDist) break; // stop after minimal layer
 
 			for (int d : dirs) {
 				int nx = stepX(cx, d, b);
@@ -317,7 +316,6 @@ public class Ex3Algo implements PacManAlgo {
 
 		if (candidates.isEmpty()) return Game.STAY;
 
-		// Tie-break among same-distance candidates
 		int bestDir = Game.STAY;
 		int bestScore = Integer.MIN_VALUE;
 
@@ -329,12 +327,11 @@ public class Ex3Algo implements PacManAlgo {
 			int threat = minBfsDistToDangerGhost(x, y, b, ghosts, code, blockPowerTiles);
 			int exits = countExits(x, y, b, blockPowerTiles, ghosts, code);
 
-			int score = 0;
-			// SAFETY dominates in tie-break
-			score += safeVal(threat) * 1000;
-			score += exits * 120;
-			if (isRecentPos(x, y)) score -= 400;
-			if (dir == lastDir) score += 40;
+			int score =
+					safeVal(threat) * 1000 +
+							exits * 120 +
+							(dir == lastDir ? 40 : 0) +
+							(isRecentPos(x, y) ? -400 : 0);
 
 			if (score > bestScore) {
 				bestScore = score;
@@ -345,8 +342,13 @@ public class Ex3Algo implements PacManAlgo {
 		return bestDir;
 	}
 
-	// ===================== BFS HELPERS =====================
+	// ===================== DIST / GHOST HELPERS =====================
 
+	/**
+	 * BFS distance from (sx,sy) to nearest cell containing targetValue.
+	 *
+	 * @return shortest distance in steps, or {@link Integer#MAX_VALUE} if unreachable / not allowed.
+	 */
 	private int nearestTargetDist(int sx, int sy, int[][] b, int targetValue,
 								  boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		if (blockPowerTiles && targetValue == POWER) return Integer.MAX_VALUE;
@@ -379,6 +381,9 @@ public class Ex3Algo implements PacManAlgo {
 		return Integer.MAX_VALUE;
 	}
 
+	/**
+	 * @return minimal BFS distance from (px,py) to any non-eatable ghost.
+	 */
 	private int minBfsDistToDangerGhost(int px, int py, int[][] b, GhostCL[] ghosts,
 										int code, boolean blockPowerTiles) {
 		int best = Integer.MAX_VALUE;
@@ -386,7 +391,7 @@ public class Ex3Algo implements PacManAlgo {
 
 		for (GhostCL g : ghosts) {
 			if (g == null) continue;
-			if (g.remainTimeAsEatable(code) > 0) continue; // danger only
+			if (g.remainTimeAsEatable(code) > 0) continue;
 			int[] gp = parseXY(g.getPos(code));
 			int gx = wrapX(gp[0], b), gy = wrapY(gp[1], b);
 			int d = bfsDist(px, py, gx, gy, b, blockPowerTiles, ghosts, code);
@@ -395,6 +400,9 @@ public class Ex3Algo implements PacManAlgo {
 		return best;
 	}
 
+	/**
+	 * BFS distance between two coordinates (walls/ghost blocks apply).
+	 */
 	private int bfsDist(int sx, int sy, int tx, int ty, int[][] b,
 						boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		if (sx == tx && sy == ty) return 0;
@@ -431,18 +439,23 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== LOOP =====================
 
+	/** Push current position into loop memory. */
 	private void pushPos(int x, int y) {
 		long key = (((long) x) << 32) ^ (y & 0xffffffffL);
 		lastPositions.addLast(key);
 		while (lastPositions.size() > LOOP_MEM) lastPositions.removeFirst();
 	}
 
+	/** @return true if (x,y) was visited recently. */
 	private boolean isRecentPos(int x, int y) {
 		long key = (((long) x) << 32) ^ (y & 0xffffffffL);
 		for (long k : lastPositions) if (k == key) return true;
 		return false;
 	}
 
+	/**
+	 * If chosen move leads to a recently visited position, try alternative legal move to break loops.
+	 */
 	private int breakLoopIfNeeded(int px, int py, int[][] b, int chosen,
 								  boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		int nx = stepX(px, chosen, b);
@@ -461,6 +474,7 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== MOVEMENT HELPERS =====================
 
+	/** Count legal neighboring cells (bigger = more open, less trap-prone). */
 	private int countExits(int x, int y, int[][] b, boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		int exits = 0;
 		int[] dirs = {Game.UP, Game.LEFT, Game.DOWN, Game.RIGHT};
@@ -472,6 +486,10 @@ public class Ex3Algo implements PacManAlgo {
 		return exits;
 	}
 
+	/**
+	 * Fallback when no smart choice exists.
+	 * Tries to keep direction, avoids immediate reverse if possible.
+	 */
 	private int anyLegalMove(int px, int py, int[][] b, boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		int[] dirs = {Game.UP, Game.LEFT, Game.DOWN, Game.RIGHT};
 
@@ -494,6 +512,9 @@ public class Ex3Algo implements PacManAlgo {
 		return Game.STAY;
 	}
 
+	/**
+	 * If stuck for several ticks, force a different legal direction (avoid "chosen" and avoid reverse if possible).
+	 */
 	private int forceDifferentLegal(int px, int py, int[][] b, int avoid,
 									boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		int[] dirs = {Game.UP, Game.LEFT, Game.DOWN, Game.RIGHT};
@@ -513,9 +534,13 @@ public class Ex3Algo implements PacManAlgo {
 		return avoid;
 	}
 
+	/**
+	 * Avoid immediate reverse direction if there is an alternative legal move.
+	 */
 	private int applyNoReverse(int px, int py, int[][] b, int chosen,
 							   boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		if (lastDir == Game.STAY) return chosen;
+
 		int rev = opposite(lastDir);
 		if (chosen != rev) return chosen;
 
@@ -536,6 +561,9 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== PASSABLE / WALL =====================
 
+	/**
+	 * A cell is passable if it is not a wall, not a blocked POWER tile, and not occupied by a danger ghost.
+	 */
 	private boolean passable(int x, int y, int[][] b, boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		int wx = wrapX(x, b);
 		int wy = wrapY(y, b);
@@ -543,10 +571,10 @@ public class Ex3Algo implements PacManAlgo {
 		int v = b[wx][wy];
 		if (v == baseWallValue) return false;
 		if (blockPowerTiles && v == POWER) return false;
-		if (isNonEatableGhostAt(wx, wy, ghosts, code)) return false;
-		return true;
+		return !isNonEatableGhostAt(wx, wy, ghosts, code);
 	}
 
+	/** @return true if a non-eatable (danger) ghost is exactly on (x,y). */
 	private boolean isNonEatableGhostAt(int x, int y, GhostCL[] ghosts, int code) {
 		if (ghosts == null) return false;
 		for (GhostCL g : ghosts) {
@@ -560,6 +588,10 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== WALL DETECTION =====================
 
+	/**
+	 * Detect the wall value by taking the most frequent "non-empty non-dot non-power" value on the borders.
+	 * If not found, falls back to most frequent excluding DOT/POWER.
+	 */
 	private int detectWallValueStable(int[][] b) {
 		Map<Integer, Integer> borderFreq = new HashMap<>();
 		int w = b.length, h = b[0].length;
@@ -586,9 +618,7 @@ public class Ex3Algo implements PacManAlgo {
 	}
 
 	private void addIfWallCandidate(Map<Integer, Integer> freq, int v) {
-		if (v == DOT) return;
-		if (v == POWER) return;
-		if (v == 0) return;
+		if (v == DOT || v == POWER || v == 0) return;
 		freq.put(v, freq.getOrDefault(v, 0) + 1);
 	}
 
@@ -597,8 +627,7 @@ public class Ex3Algo implements PacManAlgo {
 		for (int x = 0; x < b.length; x++) {
 			for (int y = 0; y < b[0].length; y++) {
 				int v = b[x][y];
-				if (v == a || v == c) continue;
-				if (v == 0) continue;
+				if (v == a || v == c || v == 0) continue;
 				freq.put(v, freq.getOrDefault(v, 0) + 1);
 			}
 		}
@@ -609,17 +638,13 @@ public class Ex3Algo implements PacManAlgo {
 				bestVal = e.getKey();
 			}
 		}
-		if (bestVal == Integer.MIN_VALUE) return mostFrequent(b);
-		return bestVal;
+		return (bestVal == Integer.MIN_VALUE) ? mostFrequent(b) : bestVal;
 	}
 
 	private static int mostFrequent(int[][] b) {
 		Map<Integer, Integer> freq = new HashMap<>();
-		for (int x = 0; x < b.length; x++) {
-			for (int y = 0; y < b[0].length; y++) {
-				int v = b[x][y];
-				freq.put(v, freq.getOrDefault(v, 0) + 1);
-			}
+		for (int[] row : b) {
+			for (int v : row) freq.put(v, freq.getOrDefault(v, 0) + 1);
 		}
 		int bestVal = b[0][0], bestCnt = -1;
 		for (Map.Entry<Integer, Integer> e : freq.entrySet()) {
@@ -633,12 +658,14 @@ public class Ex3Algo implements PacManAlgo {
 
 	// ===================== BASIC =====================
 
+	/** Initialize board color codes (DOT/PINK and POWER/GREEN). */
 	private void initColors(int code) {
 		DOT = Game.getIntColor(Color.PINK, code);
 		POWER = Game.getIntColor(Color.GREEN, code);
 		_inited = true;
 	}
 
+	/** Parse "x,y" string-like position object into int array {x,y}. */
 	private static int[] parseXY(Object posObj) {
 		String s = String.valueOf(posObj).trim();
 		int comma = s.indexOf(',');
@@ -650,6 +677,24 @@ public class Ex3Algo implements PacManAlgo {
 		} catch (Exception e) {
 			return new int[]{0, 0};
 		}
+	}
+
+	private boolean isPowerMode(GhostCL[] ghosts, int code) {
+		if (ghosts == null) return false;
+		for (GhostCL g : ghosts) {
+			if (g == null) continue;
+			if (g.remainTimeAsEatable(code) > 0) return true;
+		}
+		return false;
+	}
+
+	private boolean boardHasValue(int[][] b, int targetValue) {
+		for (int x = 0; x < b.length; x++) {
+			for (int y = 0; y < b[0].length; y++) {
+				if (b[x][y] == targetValue) return true;
+			}
+		}
+		return false;
 	}
 
 	private int wrapX(int x, int[][] b) {
@@ -694,6 +739,9 @@ public class Ex3Algo implements PacManAlgo {
 		return Game.STAY;
 	}
 
+	/**
+	 * Simple "start moving" heuristic for the first few ticks, still obeying passable rules.
+	 */
 	private int openingMove(int px, int py, int[][] b, boolean blockPowerTiles, GhostCL[] ghosts, int code) {
 		int rx = stepX(px, Game.RIGHT, b), ry = stepY(py, Game.RIGHT, b);
 		if (passable(rx, ry, b, blockPowerTiles, ghosts, code)) return Game.RIGHT;
@@ -702,9 +750,5 @@ public class Ex3Algo implements PacManAlgo {
 		if (passable(lx, ly, b, blockPowerTiles, ghosts, code)) return Game.LEFT;
 
 		return Game.STAY;
-	}
-
-	private void dbg(String s) {
-		if (DEBUG) System.out.println(s);
 	}
 }
