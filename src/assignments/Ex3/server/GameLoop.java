@@ -1,8 +1,6 @@
 package assignments.Ex3.server;
 
-import assignments.Ex3.model.Direction;
-import assignments.Ex3.model.GameState;
-import assignments.Ex3.model.Tile;
+import assignments.Ex3.model.*;
 import assignments.Ex3.render.Renderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +14,10 @@ public class GameLoop {
 
     private final Random rnd = new Random();
     private final InputController input;
+
+    private final GhostMovement ghostMovement = new GhostMovement();
+    private final CollisionSystem collisionSystem = new CollisionSystem();
+
 
     public GameLoop(GameState s, Renderer renderer, InputController input, int dtMs) {
         this.s = s;
@@ -32,13 +34,16 @@ public class GameLoop {
         while (!s.done && steps < maxSteps) {
             Direction d = input.nextDirection();
             stepPacman(d);
-            renderer.render(s);
-
+            moveGhosts(s);
+            collisionSystem.resolve(s);
+            s.tickPower();
             if (!hasDotsLeft()) s.done = true;
-
+            renderer.render(s);
             steps++;
             sleep(dtMs);
+
         }
+
 
         if (!s.done) {
             System.out.println("Stopped by maxSteps (debug safety). score=" + s.score);
@@ -70,10 +75,11 @@ public class GameLoop {
 
             if (s.grid[nx][ny] == Tile.DOT) {
                 s.grid[nx][ny] = Tile.EMPTY;
-                s.score += 10;
+                s.addScore(10);
             } else if (s.grid[nx][ny] == Tile.POWER) {
                 s.grid[nx][ny] = Tile.EMPTY;
-                s.score += 50;
+                s.addScore(50);
+                s.activatePower(80);
             }
         }
     }
@@ -91,4 +97,19 @@ public class GameLoop {
     private static void sleep(int ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
     }
+    private void moveGhosts(GameState s) {
+        for (Ghost g : s.getGhosts()) {
+            Direction next = ghostMovement.chooseNext(g, s);
+            g.setDir(next);
+
+            int nx = g.x() + next.dx;
+            int ny = g.y() + next.dy;
+
+            // Safety (should already be legal, but never hurts)
+            if (!s.isWall(nx, ny)) {
+                g.setPos(nx, ny);
+            }
+        }
+    }
+
 }

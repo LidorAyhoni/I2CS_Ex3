@@ -26,6 +26,10 @@ public class GameState {
     private final List<Ghost> ghosts = new ArrayList<>();
     private final List<Index2D> ghostSpawns = new ArrayList<>();
 
+    // --- Power mode ---
+    private int powerTicksLeft = 0;
+
+
     public GameState(Tile[][] grid, int pacX, int pacY) {
         if (grid == null || grid.length == 0 || grid[0].length == 0) {
             throw new IllegalArgumentException("grid is null/empty");
@@ -137,4 +141,29 @@ public class GameState {
             if (!done) resetPositions();
         }
     }
+    public void activatePower(int ticks) {
+        if (ticks <= 0) return;
+
+        // אם כבר בפאוור – מאריכים, לא מקצרים
+        powerTicksLeft = Math.max(powerTicksLeft, ticks);
+
+        for (Ghost g : ghosts) {
+            g.setEatable(true);
+        }
+    }
+    public void tickPower() {
+        if (powerTicksLeft <= 0) return;
+
+        powerTicksLeft--;
+
+        if (powerTicksLeft == 0) {
+            for (Ghost g : ghosts) {
+                g.setEatable(false);
+            }
+        }
+    }
+    public boolean isPowerMode() {
+        return powerTicksLeft > 0;
+    }
+
 }
