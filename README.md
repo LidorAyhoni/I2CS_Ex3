@@ -121,7 +121,7 @@ The project can also be executed using the provided JAR file.
 
 ### Run command
 ```bash
-java -jar Ex3_PacMan_Lidor.jar
+java -jar release\Ex3_PacMan_Lidor.jar
 ```
 If java is not in PATH, run using the full path to the Java executable:
 ```bash
@@ -143,7 +143,8 @@ Runtime toggling between AI and Manual
 
 ## 🎥 Demo Video
 
-Not included.
+A short gameplay and functionality demonstration:
+https://drive.google.com/file/d/17cYqks4-eDXt-K6LjcoXcQ0xNdk7t2Op/view?usp=drive_link
 
 ## 👤 Author
 
