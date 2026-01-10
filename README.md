@@ -1,298 +1,151 @@
-# Ex3 – Pac-Man Game
-**Introduction to Computer Science – Ariel University**
+# Ex3 – Pac-Man (Server + Client)
 
-Author: **Lidor Ayhoni**  
-Java Version: **Java 21**
+## 📌 Overview
+This project is a full implementation of **Exercise 3 – Pac-Man**, including:
 
----
+- A **custom server-side game engine**
+- A **rendering layer** based on StdDraw
+- **Manual and AI-controlled Pac-Man**
+- **Multiple levels with increasing difficulty**
+- A sophisticated **AI algorithm (Ex3Algo)** adapted to run on a custom server
 
-## 1. Project Overview
-
-This project implements a complete **Pac-Man game** as part of **Exercise 3 (Ex3)** in the *Introduction to Computer Science* course at Ariel University.
-
-The system combines:
-- A **server-side game engine** that manages the game loop, state updates, collisions, ghost behavior, scoring, and power mode.
-- A **client-side AI algorithm** (`Ex3Algo`) that controls Pac-Man according to the official Ex3 API.
-- A **manual control mode** for human gameplay.
-- A **live toggle mechanism** that allows switching between Manual and AI control during gameplay.
-- A graphical interface based on the course-provided **StdDraw** library (used via a wrapper, without modifying the lecturer’s JAR).
-
-The project demonstrates object-oriented design, separation of concerns, and a clear distinction between **game logic**, **input**, **rendering**, and **AI decision making**.
+The project was implemented in Java **without Maven/Gradle**, following the course requirements.
 
 ---
 
-## 2. Gameplay Flow
+## 🧠 Game Logic Summary
 
-1. The game starts with a **console menu**, where the user selects:
-    - A level (0 / 1 / 2)
-    - Initial control mode (Manual or AI)
+### 🎮 Core Mechanics
+- Pac-Man moves on a grid-based map.
+- Walls block movement.
+- Dots increase score.
+- Power pellets activate **Power Mode**.
+- Ghosts move independently and interact with Pac-Man via collisions.
 
-2. The game window opens and waits for user input.
-3. The game **starts only after pressing SPACE**.
-4. During gameplay:
-    - Pac-Man moves (manually or via AI)
-    - Ghosts move autonomously
-    - Collisions are resolved
-    - Score, lives, and power mode are updated
-5. At any time, the player can press **T** to toggle between AI and Manual control.
+### 👻 Ghost Behavior
+- Ghosts move **randomly but legally**:
+  - Never enter walls
+  - Prefer to keep direction if possible
+  - Avoid immediate reverse unless necessary
+- When Pac-Man eats a POWER:
+  - All ghosts become **eatable** for a fixed duration (~5 seconds)
+  - Eaten ghosts respawn at their original spawn point
+- After Power Mode ends:
+  - Ghosts become dangerous again
 
----
-
-## 3. Controls
-
-| Key | Action |
-|----|------|
-| Arrow Keys / WASD | Move Pac-Man (Manual mode) |
-| **SPACE** | Start the game |
-| **T** | Toggle AI / Manual control |
-
----
-
-## 4. Levels and Difficulty Scaling
-
-The game includes **three levels**, each increasing the difficulty:
-
-- **Level 0**  
-  Small board, few ghosts, basic navigation.
-
-- **Level 1**  
-  Larger board, more ghosts, increased path complexity.
-
-- **Level 2 (XL)**  
-  Very large board, multiple ghosts, high navigation and survival complexity.
-
-As the level increases:
-- The board dimensions grow
-- The number of ghosts increases
-- The AI must handle longer paths and higher risk
-
-Levels are defined programmatically and loaded via `LevelLoader`.
+### 💥 Collision Rules
+- Pac-Man + non-eatable ghost → lose a life
+- Pac-Man + eatable ghost → gain score and ghost respawns
+- When lives reach 0 → game over
 
 ---
 
-## 5. Architecture Overview
+## 🤖 AI – Ex3Algo
 
-Although all classes reside under the base package `assignments.Ex3`, the project is logically divided into the following layers:
+The Pac-Man AI is based on the **Ex3Algo** developed earlier in the course.
 
----
+### AI priorities:
+1. **Escape** when dangerous ghosts are nearby (maximize distance).
+2. **Eat efficiently** using BFS shortest paths.
+3. **Smart tie-breaking**:
+  - Prefer safer positions
+  - Avoid loops
+  - Prefer open areas
+4. **Power policy**:
+  - Avoid POWER early unless needed
+  - Use POWER strategically when danger is near
+  - Do not step on POWER while already protected
 
-### 5.1 Model Layer
+### Integration
+Because this project uses a **custom server**, the original `Ex3Algo` is integrated via:
+- `PacmanGameImpl` – an adapter exposing `GameState` as `PacmanGame`
+- `AiDirectionProvider` – bridges the algorithm into the server loop
 
-Responsible for representing the **game state and rules**.
-
-Key classes:
-- **`GameState`**  
-  Holds the entire mutable state of the game:
-    - Tile grid
-    - Pac-Man position
-    - Ghost list
-    - Score and lives
-    - Power mode state and timer
-    - Game over / win flags
-    - Current control mode (AI / Manual)
-
-- **`Pacman`**, **`Ghost`**, **`Entity`**  
-  Represent game entities and their positions.
-
-- **`CollisionSystem`**  
-  Resolves interactions:
-    - Pac-Man vs DOT
-    - Pac-Man vs POWER
-    - Pac-Man vs Ghost (with or without power mode)
-
-- **`GhostMovement`**  
-  Controls ghost movement logic independently of Pac-Man.
+This allows the **same AI logic** to run unchanged on a custom engine.
 
 ---
 
-### 5.2 Server Layer (Game Engine)
+## 🗺️ Levels
+The game includes **3 levels**:
 
-Responsible for **running the game**.
+| Level | Description |
+|-----|------------|
+| Level 0 | Small map, few ghosts |
+| Level 1 | Medium map, more space and ghosts |
+| Level 2 | Large map, higher difficulty |
 
-- **`GameLoop`**  
-  The core loop of the game.  
-  On each tick:
-    1. Determines Pac-Man’s next direction
-    2. Moves Pac-Man
-    3. Moves all ghosts
-    4. Applies collision logic
-    5. Updates power mode timer
-    6. Renders the updated state
-
-- **`InputController`**  
-  Handles keyboard input:
-    - Movement keys
-    - Game start (SPACE)
-    - Control toggle (T)
-
-- **`MyServerMain`**  
-  Entry point:
-    - Console menu
-    - Level loading
-    - Game initialization
-    - Game startup
+Each level:
+- Has a larger board
+- Contains more ghosts
+- Increases challenge gradually
 
 ---
 
-### 5.3 Rendering Layer
+## 🧩 Project Structure
 
-Responsible only for **visual output**.
-
-- **`StdDrawRenderer`**
-    - Draws walls, dots, power pellets
-    - Draws Pac-Man and ghosts
-    - Ghosts change color during power mode
-    - Renders HUD (Score, Lives, Power, Control Mode)
-
-Rendering is completely decoupled from game logic.
-
----
-
-### 5.4 Client AI Layer
-
-The AI is treated as a **client** that communicates with the game engine via an adapter.
-
-- **`Ex3Algo`**  
-  Implements the official Ex3 algorithm interface.
-
-- **`PacmanGameImpl`**  
-  Adapter that exposes the server-side `GameState` through the `PacmanGame` API required by the AI.
-
-- **Direction Providers**
-    - `ManualDirectionProvider`
-    - `AiDirectionProvider`
-    - `ToggleDirectionProvider` – enables live switching between AI and Manual control
+src/
+└─ assignments/Ex3
+├─ model // GameState, Ghost, CollisionSystem, Direction, Tile
+├─ render // Renderer, StdDrawRenderer
+├─ server // GameLoop, MyServerMain, PacmanGameImpl
+│ └─ control // Manual / AI / Toggle Direction Providers
+├─ levels // LevelLoader (maps)
+├─ Ex3Algo // Original AI algorithm
 
 ---
 
-## 6. AI Algorithm – Detailed Explanation
+## ▶️ How to Run (IntelliJ – Recommended)
 
-The AI controls Pac-Man using **context-aware path-finding** based on the current game state.
+1. Open the project in IntelliJ
+2. Make sure **Java 21** is selected as the Project SDK
+3. Run:
+   assignments.Ex3.server.MyServerMain
 
----
-
-### 6.1 Board Representation
-
-- The game board is treated as a **grid-based graph**.
-- Each walkable tile is a node.
-- Valid moves correspond to edges between adjacent tiles.
-
----
-
-### 6.2 Path-Finding
-
-The AI uses **Breadth-First Search (BFS)** to compute shortest paths.
-
-BFS is used to:
-- Find the nearest DOT
-- Find the nearest POWER pellet
-- Chase ghosts during power mode
-- Escape from nearby ghosts when in danger
-
-BFS guarantees:
-- Shortest path in number of steps
-- Deterministic and predictable behavior
+### At startup:
+- Choose level (0 / 1 / 2)
+- Choose mode:
+- Manual (keyboard)
+- AI
+- Press **SPACE** to start the game
+- Press **T** during the game to toggle AI / Manual
 
 ---
 
-### 6.3 Decision Strategy
+## ▶️ Run from JAR
 
-The AI operates in **three main modes**, evaluated every tick:
-
----
-
-#### 1️⃣ Power Mode (Aggressive)
-
-If power mode is active:
-- Target the **nearest ghost**
-- Move along the shortest path toward it
-- Maximize score by eating ghosts safely
-
----
-
-#### 2️⃣ Danger Mode (Defensive)
-
-If power mode is inactive **and ghosts are nearby**:
-- Evaluate paths that **increase distance from ghosts**
-- Prefer safe tiles with fewer immediate threats
-- Avoid corridors that can lead to dead ends
-
----
-
-#### 3️⃣ Normal Mode (Collecting)
-
-If no immediate danger exists:
-- Target the **nearest DOT**
-- If beneficial, prioritize a POWER pellet
-- Choose shortest safe path
-
----
-
-### 6.4 Direction Selection
-
-Once a target is chosen:
-1. BFS computes the shortest path
-2. The **first step** of the path determines the next direction
-3. This direction is returned to the server via the adapter
-
-The same game logic is shared between AI and Manual control.
-
----
-
-## 7. Testing
-
-The project includes **JUnit tests**, primarily focused on validating:
-
-- Correct behavior of `Ex3Algo`
-- Legal and consistent direction decisions
-- Compliance with the Ex3 API
-
-All tests pass successfully.
-
----
-
-## 8. How to Run
+The project can also be executed using the provided JAR file.
 
 ### Requirements
-- Java **21**
-- IntelliJ IDEA (recommended)
+- Java **21** installed
+- `java` command available in PATH
 
-### Running the Game
-1. Open the project in IntelliJ.
-2. Run `MyServerMain`.
-3. Choose level and control mode via the console.
-4. Press **SPACE** to start the game.
+### Run command
+```bash
+java -jar Ex3_PacMan_Lidor.jar
+```
+If java is not in PATH, run using the full path to the Java executable:
+```bash
+"C:\Path\To\Java\bin\java.exe" -jar Ex3_PacMan_Lidor.jar
+```
+## 🧪 Testing
 
----
+JUnit tests are included for core logic and algorithm components.
 
-## 9. Demo Video
+The game was tested manually across:
 
-A short demo video (up to 120 seconds) will be added before submission, demonstrating:
-- Console level selection
-- Manual gameplay
-- Power mode behavior
-- Ghost interactions
-- AI control
-- Live toggling between AI and Manual modes
+All 3 levels
 
----
+Manual mode
 
-## 10. Academic Integrity
+AI mode
 
-This project was implemented independently and follows the academic integrity guidelines of Ariel University.
+Runtime toggling between AI and Manual
 
-Only the officially provided course libraries were used.
+## 🎥 Demo Video
 
----
+Not included.
 
-## 11. Summary
+## 👤 Author
 
-This project demonstrates:
-- Full server-side game loop implementation
-- Clean separation between logic, rendering, input, and AI
-- A functional and adaptive AI using BFS
-- Stable and interactive gameplay
-- A complete and playable Pac-Man game
-
----
+Lidor Ayhoni
 

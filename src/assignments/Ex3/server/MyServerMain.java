@@ -1,6 +1,5 @@
 package assignments.Ex3.server;
 
-import assignments.Ex3.Ex3Algo;
 import assignments.Ex3.levels.LevelLoader;
 import assignments.Ex3.model.GameState;
 import assignments.Ex3.render.Renderer;
@@ -44,7 +43,6 @@ public class MyServerMain {
             default -> LevelLoader.level1();
         };
 
-
         // -------- Renderer --------
         Renderer r = new StdDrawRenderer();
         r.init(800, s.w, s.h);
@@ -53,8 +51,8 @@ public class MyServerMain {
         InputController input = new InputController();
         DirectionProvider manual = new ManualDirectionProvider(input);
 
-        PacmanGameImpl adapter = new PacmanGameImpl(s);
-        DirectionProvider ai = new AiDirectionProvider(new Ex3Algo(), adapter);
+        // ✅ AI provider that uses ServerEx3Algo directly (no adapter, no jar algo)
+        DirectionProvider ai = new AiDirectionProvider();
 
         ToggleDirectionProvider provider = new ToggleDirectionProvider(manual, ai);
         provider.setAiEnabled(startWithAI);
@@ -66,14 +64,13 @@ public class MyServerMain {
         // -------- Wait for SPACE --------
         System.out.println();
         System.out.println("Game loaded ✅");
-        System.out.println("Level: " + (level == 0 ? 0 : 1));
+        System.out.println("Level: " + level);
         System.out.println("Mode: " + (startWithAI ? "AI" : "MANUAL"));
         System.out.println("Press SPACE to start");
         System.out.println("Press 'T' anytime to toggle AI / Manual");
         System.out.println();
 
         while (!input.consumeStart()) {
-            // keep rendering so the window stays responsive
             r.render(s);
             try { Thread.sleep(30); } catch (InterruptedException ignored) {}
         }
