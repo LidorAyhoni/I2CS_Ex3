@@ -17,9 +17,4 @@ public enum Direction {
         this.dx = dx;
         this.dy = dy;
     }
-
-    public static Direction fromGameDir(int d) {
-        for (Direction dir : values()) if (dir.gameDir == d) return dir;
-        return STAY;
-    }
 }

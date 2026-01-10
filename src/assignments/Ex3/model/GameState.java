@@ -29,6 +29,9 @@ public class GameState {
     // --- Power mode ---
     private int powerTicksLeft = 0;
 
+    public Direction pacDir = Direction.LEFT; //Or STAY
+    public boolean aiEnabled = false;
+
 
     public GameState(Tile[][] grid, int pacX, int pacY) {
         if (grid == null || grid.length == 0 || grid[0].length == 0) {
@@ -45,6 +48,7 @@ public class GameState {
         this.pacSpawnY = pacY;
     }
 
+
     // ---- Getters (small, useful, keeps other classes clean) ----
     public int getPacmanX() { return pacX; }
     public int getPacmanY() { return pacY; }
@@ -56,6 +60,7 @@ public class GameState {
     public boolean inBounds(int x, int y) {
         return x >= 0 && y >= 0 && x < w && y < h;
     }
+
 
     public boolean isWall(int x, int y) {
         return !inBounds(x, y) || grid[x][y] == Tile.WALL;
@@ -105,7 +110,7 @@ public class GameState {
             Ghost g = ghosts.get(i);
             Index2D sp = ghostSpawns.get(i);
             g.setPos(sp.getX(), sp.getY());
-            g.setEatable(false);
+            g.setEatable(isPowerMode());
             g.setDir(Direction.STAY);
         }
     }
@@ -118,14 +123,14 @@ public class GameState {
             if (ghosts.get(i) == g) {
                 Index2D sp = ghostSpawns.get(i);
                 g.setPos(sp.getX(), sp.getY());
-                g.setEatable(false);
+                g.setEatable(isPowerMode());
                 g.setDir(Direction.STAY);
                 return;
             }
         }
 
         // Fallback: still ensure it's not eatable and doesn't keep direction
-        g.setEatable(false);
+        g.setEatable(isPowerMode());
         g.setDir(Direction.STAY);
     }
 
@@ -136,15 +141,51 @@ public class GameState {
         if (g != null && g.isEatable()) {
             addScore(200);
             respawnGhost(g);
+
         } else {
             loseLife();
             if (!done) resetPositions();
         }
     }
+    private static void spawnGhostsNearPacman(GameState s, int count) {
+        int px = s.getPacmanX();
+        int py = s.getPacmanY();
+
+        int added = 0;
+        int radius = 1;
+
+        while (added < count && radius < Math.max(s.w, s.h)) {
+            for (int dx = -radius; dx <= radius && added < count; dx++) {
+                for (int dy = -radius; dy <= radius && added < count; dy++) {
+                    int x = px + dx;
+                    int y = py + dy;
+
+                    if (dx == 0 && dy == 0) continue;          // not on pacman
+                    if (!s.inBounds(x, y)) continue;
+                    if (s.isWall(x, y)) continue;
+
+                    // avoid placing two ghosts on same cell
+                    boolean occupied = false;
+                    for (Ghost g : s.getGhosts()) {
+                        if (g.x() == x && g.y() == y) { occupied = true; break; }
+                    }
+                    if (occupied) continue;
+
+                    s.addGhost(new Ghost(x, y));
+                    added++;
+                }
+            }
+            radius++;
+        }
+
+        if (added < count) {
+            throw new IllegalStateException("Could not find enough free cells to spawn ghosts");
+        }
+    }
+
     public void activatePower(int ticks) {
         if (ticks <= 0) return;
 
-        // אם כבר בפאוור – מאריכים, לא מקצרים
         powerTicksLeft = Math.max(powerTicksLeft, ticks);
 
         for (Ghost g : ghosts) {

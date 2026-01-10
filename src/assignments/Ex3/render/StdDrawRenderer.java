@@ -1,27 +1,32 @@
 package assignments.Ex3.render;
 
 import assignments.Ex3.model.GameState;
+import assignments.Ex3.model.Ghost;
 import assignments.Ex3.model.Tile;
 import exe.ex3.game.StdDraw;
 
 import java.awt.Color;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class StdDrawRenderer implements Renderer {
 
     private int w, h;
 
+    // Ghost palette (base colors when NOT eatable)
+    private static final Color[] GHOST_COLORS = {
+            Color.RED, Color.CYAN, Color.PINK, Color.ORANGE, Color.MAGENTA
+    };
+
     @Override
     public void init(int pixels, int gridW, int gridH) {
         this.w = gridW;
         this.h = gridH;
 
-        // אצל המרצה ראינו: setCanvasSize(int,int,int)
         SD.setCanvasSize(pixels, pixels);
         SD.setXscale(0, w);
         SD.setYscale(0, h);
 
-        // אופציונלי: אם יש double buffering בגרסה שלהם
         SD.enableDoubleBufferingIfExists();
     }
 
@@ -29,7 +34,7 @@ public class StdDrawRenderer implements Renderer {
     public void render(GameState s) {
         SD.clear(Color.BLACK);
 
-        // ציור המפה
+        // draw tiles
         for (int x = 0; x < w; x++) {
             for (int y = 0; y < h; y++) {
                 Tile t = s.grid[x][y];
@@ -53,67 +58,179 @@ public class StdDrawRenderer implements Renderer {
             }
         }
 
-        // פאקמן
+        // draw pacman
         SD.setPenColor(Color.YELLOW);
         SD.filledCircle(s.pacX + 0.5, s.pacY + 0.5, 0.40);
 
-        // ניקוד
+        // draw ghosts (different colors)
+        int idx = 0;
+        for (Ghost g : s.getGhosts()) {
+            Color base = GHOST_COLORS[idx % GHOST_COLORS.length];
+
+            // In your logic: g.isEatable() means power mode effect on that ghost
+            // Keep the same behavior: eatable -> GREEN, otherwise unique base color
+            SD.setPenColor(g.isEatable() ? Color.GREEN : base);
+
+            double cx = g.x() + 0.5;
+            double cy = g.y() + 0.5;
+
+            SD.filledCircle(cx, cy, 0.45);
+
+            idx++;
+        }
+
+        // HUD (top-left)
         SD.setPenColor(Color.WHITE);
-        SD.textLeft(0.2, h - 0.3, "Score: " + s.score);
+
+        double hudX = 0.2;
+        double y1 = h - 0.3;
+        double y2 = h - 0.7;
+        double y3 = h - 1.1;
+        double y4 = h - 1.5;
+
+        int score = safeInt(() -> s.getScore(), s.score);
+        int lives = safeInt(() -> s.getLives(), -1);
+
+        boolean power = safeBool(() -> s.isPowerMode(), false);
+        int powerLeft = getPowerTicksLeftSafe(s); // -1 if unknown
+
+        String modeText = getModeTextSafe(s);
+
+        SD.textLeft(hudX, y1, "Score: " + score);
+        if (lives >= 0) SD.textLeft(hudX, y2, "Lives: " + lives);
+
+        if (powerLeft >= 0) {
+            SD.textLeft(hudX, y3, "Power: " + (power ? "ON" : "OFF") + " (" + powerLeft + ")");
+        } else {
+            SD.textLeft(hudX, y3, "Power: " + (power ? "ON" : "OFF"));
+        }
+
+        SD.textLeft(hudX, y4, modeText);
 
         SD.show();
     }
 
-    /**
-     * Wrapper קטן סביב StdDraw:
-     * מנסה קודם חתימה "רגילה", ואם לא קיימת אז חתימה עם int בסוף (hash).
-     */
-    private static final class SD {
-        // כל ערך int עובד כ"דמה" עבור ה-hash, אצל המרצה הוא רק לצרכי obfuscation/validation פנימי
-        private static final int HASH = 1;
+    /* ================= HUD safe helpers (no compile-time dependency) ================= */
 
+    private interface IntSupplierEx { int get() throws Exception; }
+    private interface BoolSupplierEx { boolean get() throws Exception; }
+
+    private static int safeInt(IntSupplierEx getter, int fallback) {
+        try { return getter.get(); } catch (Exception ignored) { return fallback; }
+    }
+
+    private static boolean safeBool(BoolSupplierEx getter, boolean fallback) {
+        try { return getter.get(); } catch (Exception ignored) { return fallback; }
+    }
+
+    /** Mode: AI/MANUAL if we can read it from GameState, else Mode: ? */
+    private static String getModeTextSafe(GameState s) {
+        Boolean ai = readBooleanFieldOrGetter(s, "aiEnabled", "isAiEnabled", "getAiEnabled");
+        if (ai == null) return "Mode: ?";
+        return "Mode: " + (ai ? "AI" : "MANUAL");
+    }
+
+    /** Returns remaining power ticks if exists, else -1 */
+    private static int getPowerTicksLeftSafe(GameState s) {
+        Integer v = readIntFieldOrGetter(s, "powerTicksLeft", "getPowerTicksLeft", "getPowerLeft", "getPowerRemain");
+        return v == null ? -1 : Math.max(0, v);
+    }
+
+    private static Boolean readBooleanFieldOrGetter(Object obj, String fieldName, String... getters) {
+        try {
+            // try getter
+            for (String g : getters) {
+                try {
+                    Method m = obj.getClass().getMethod(g);
+                    m.setAccessible(true);
+                    Object val = m.invoke(obj);
+                    if (val instanceof Boolean) return (Boolean) val;
+                } catch (NoSuchMethodException ignored) {}
+            }
+            // try field
+            Field f = findField(obj.getClass(), fieldName);
+            if (f != null) {
+                f.setAccessible(true);
+                Object val = f.get(obj);
+                if (val instanceof Boolean) return (Boolean) val;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static Integer readIntFieldOrGetter(Object obj, String fieldName, String... getters) {
+        try {
+            // try getter
+            for (String g : getters) {
+                try {
+                    Method m = obj.getClass().getMethod(g);
+                    m.setAccessible(true);
+                    Object val = m.invoke(obj);
+                    if (val instanceof Integer) return (Integer) val;
+                } catch (NoSuchMethodException ignored) {}
+            }
+            // try field
+            Field f = findField(obj.getClass(), fieldName);
+            if (f != null) {
+                f.setAccessible(true);
+                Object val = f.get(obj);
+                if (val instanceof Integer) return (Integer) val;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static Field findField(Class<?> cls, String name) {
+        Class<?> c = cls;
+        while (c != null) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                c = c.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    /* ================= StdDraw reflection wrapper ================= */
+
+    private static final class SD {
+        private static final int HASH = 1;
         private SD() {}
 
         static void setCanvasSize(int w, int h) {
-            // setCanvasSize(int,int) או setCanvasSize(int,int,int)
             if (!invokeVoid("setCanvasSize", new Class<?>[]{int.class, int.class}, w, h)) {
                 mustInvokeVoid("setCanvasSize", new Class<?>[]{int.class, int.class, int.class}, w, h, HASH);
             }
         }
 
         static void setXscale(double min, double max) {
-            // setXscale(double,double) או setXscale(double,double,int)
             if (!invokeVoid("setXscale", new Class<?>[]{double.class, double.class}, min, max)) {
                 mustInvokeVoid("setXscale", new Class<?>[]{double.class, double.class, int.class}, min, max, HASH);
             }
         }
 
         static void setYscale(double min, double max) {
-            // setYscale(double,double) או setYscale(double,double,int)
             if (!invokeVoid("setYscale", new Class<?>[]{double.class, double.class}, min, max)) {
                 mustInvokeVoid("setYscale", new Class<?>[]{double.class, double.class, int.class}, min, max, HASH);
             }
         }
 
         static void clear(Color c) {
-            // clear(Color) או clear(Color,int) או clear(int) fallback
             if (invokeVoid("clear", new Class<?>[]{Color.class}, c)) return;
             if (invokeVoid("clear", new Class<?>[]{Color.class, int.class}, c, HASH)) return;
 
-            // fallback: clear() או clear(int)
             if (invokeVoid("clear", new Class<?>[]{}, new Object[]{})) return;
             mustInvokeVoid("clear", new Class<?>[]{int.class}, HASH);
         }
 
         static void setPenColor(Color c) {
-            // setPenColor(Color) או setPenColor(Color,int)
             if (!invokeVoid("setPenColor", new Class<?>[]{Color.class}, c)) {
                 mustInvokeVoid("setPenColor", new Class<?>[]{Color.class, int.class}, c, HASH);
             }
         }
 
         static void filledSquare(double x, double y, double half) {
-            // filledSquare(double,double,double) או filledSquare(double,double,double,int)
             if (!invokeVoid("filledSquare", new Class<?>[]{double.class, double.class, double.class}, x, y, half)) {
                 mustInvokeVoid("filledSquare",
                         new Class<?>[]{double.class, double.class, double.class, int.class},
@@ -122,7 +239,6 @@ public class StdDrawRenderer implements Renderer {
         }
 
         static void filledCircle(double x, double y, double r) {
-            // filledCircle(double,double,double) או filledCircle(double,double,double,int)
             if (!invokeVoid("filledCircle", new Class<?>[]{double.class, double.class, double.class}, x, y, r)) {
                 mustInvokeVoid("filledCircle",
                         new Class<?>[]{double.class, double.class, double.class, int.class},
@@ -131,7 +247,6 @@ public class StdDrawRenderer implements Renderer {
         }
 
         static void textLeft(double x, double y, String text) {
-            // textLeft(double,double,String) או textLeft(double,double,String,int)
             if (!invokeVoid("textLeft", new Class<?>[]{double.class, double.class, String.class}, x, y, text)) {
                 mustInvokeVoid("textLeft",
                         new Class<?>[]{double.class, double.class, String.class, int.class},
@@ -140,19 +255,15 @@ public class StdDrawRenderer implements Renderer {
         }
 
         static void show() {
-            // show() או show(int)
             if (!invokeVoid("show", new Class<?>[]{}, new Object[]{})) {
                 mustInvokeVoid("show", new Class<?>[]{int.class}, HASH);
             }
         }
 
         static void enableDoubleBufferingIfExists() {
-            // enableDoubleBuffering() או enableDoubleBuffering(int) — אם לא קיים, לא נופלים
             invokeVoid("enableDoubleBuffering", new Class<?>[]{}, new Object[]{});
             invokeVoid("enableDoubleBuffering", new Class<?>[]{int.class}, HASH);
         }
-
-        /* ---------- Reflection helpers ---------- */
 
         private static boolean invokeVoid(String name, Class<?>[] types, Object... args) {
             try {

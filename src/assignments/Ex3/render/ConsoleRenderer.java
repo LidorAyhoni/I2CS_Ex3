@@ -7,7 +7,7 @@ public class ConsoleRenderer implements Renderer {
 
     @Override
     public void init(int pixels, int gridW, int gridH) {
-        // לא צריך כלום בקונסול
+
     }
 
     @Override

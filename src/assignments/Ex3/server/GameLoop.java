@@ -2,26 +2,34 @@ package assignments.Ex3.server;
 
 import assignments.Ex3.model.*;
 import assignments.Ex3.render.Renderer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import assignments.Ex3.model.Direction;
+import assignments.Ex3.server.control.DirectionProvider;
+import assignments.Ex3.server.control.*;
+
 
 public class GameLoop {
+
     private final GameState s;
     private final Renderer renderer;
-    private final int dtMs;
-
-    private final Random rnd = new Random();
+    private final DirectionProvider provider;
     private final InputController input;
+    private final int dtMs;
 
     private final GhostMovement ghostMovement = new GhostMovement();
     private final CollisionSystem collisionSystem = new CollisionSystem();
 
 
-    public GameLoop(GameState s, Renderer renderer, InputController input, int dtMs) {
+    public GameLoop(GameState s, Renderer renderer, DirectionProvider provider) {
+        this(s, renderer, provider, null, 80);
+    }
+
+    public GameLoop(GameState s, Renderer renderer, DirectionProvider provider, InputController input) {
+        this(s, renderer, provider, input, 80);
+    }
+
+    public GameLoop(GameState s, Renderer renderer, DirectionProvider provider, InputController input, int dtMs) {
         this.s = s;
         this.renderer = renderer;
+        this.provider = provider;
         this.input = input;
         this.dtMs = dtMs;
     }
@@ -29,21 +37,39 @@ public class GameLoop {
 
     public void run() {
         int steps = 0;
-        int maxSteps = 20_000; // מספיק גדול
+        int maxSteps = 20_000;
 
         while (!s.done && steps < maxSteps) {
-            Direction d = input.nextDirection();
-            stepPacman(d);
-            moveGhosts(s);
-            collisionSystem.resolve(s);
+
+            // Toggle AI with T
+            if (input != null && provider instanceof ToggleDirectionProvider tdp) {
+                if (input.consumeToggleAI()) {
+                    tdp.toggle();
+                    s.aiEnabled = tdp.isAiEnabled();
+                    System.out.println("AI mode: " + (tdp.isAiEnabled() ? "ON" : "OFF"));
+                }
+            }
+
+            Direction nd = provider.nextDirection(s);
+            if (nd != null) s.pacDir = nd;
+
+            stepPacman(s.pacDir);
+            collisionSystem.resolve(s); // ✅ collision after pacman move
+            if (s.done) break;          // optional safety
+
+            moveGhosts();
+            collisionSystem.resolve(s); // ✅ collision after ghosts move
             s.tickPower();
-            if (!hasDotsLeft()) s.done = true;
+
+            if (!hasDotsLeft()) {
+                s.done = true;
+            }
+
             renderer.render(s);
+
             steps++;
             sleep(dtMs);
-
         }
-
 
         if (!s.done) {
             System.out.println("Stopped by maxSteps (debug safety). score=" + s.score);
@@ -51,19 +77,6 @@ public class GameLoop {
         }
     }
 
-
-    private Direction chooseAutoDirection() {
-        List<Direction> opts = new ArrayList<>(4);
-
-        for (Direction d : new Direction[]{Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT}) {
-            int nx = s.pacX + d.dx;
-            int ny = s.pacY + d.dy;
-            if (!s.isWall(nx, ny)) opts.add(d);
-        }
-
-        if (opts.isEmpty()) return Direction.STAY;
-        return opts.get(rnd.nextInt(opts.size()));
-    }
 
     private void stepPacman(Direction d) {
         int nx = s.pacX + d.dx;
@@ -73,13 +86,28 @@ public class GameLoop {
             s.pacX = nx;
             s.pacY = ny;
 
-            if (s.grid[nx][ny] == Tile.DOT) {
+            Tile t = s.grid[nx][ny];
+            if (t == Tile.DOT) {
                 s.grid[nx][ny] = Tile.EMPTY;
                 s.addScore(10);
-            } else if (s.grid[nx][ny] == Tile.POWER) {
+            } else if (t == Tile.POWER) {
                 s.grid[nx][ny] = Tile.EMPTY;
                 s.addScore(50);
                 s.activatePower(80);
+            }
+        }
+    }
+
+    private void moveGhosts() {
+        for (Ghost g : s.getGhosts()) {
+            Direction next = ghostMovement.chooseNext(g, s);
+            g.setDir(next);
+
+            int nx = g.x() + next.dx;
+            int ny = g.y() + next.dy;
+
+            if (!s.isWall(nx, ny)) {
+                g.setPos(nx, ny);
             }
         }
     }
@@ -97,19 +125,4 @@ public class GameLoop {
     private static void sleep(int ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
     }
-    private void moveGhosts(GameState s) {
-        for (Ghost g : s.getGhosts()) {
-            Direction next = ghostMovement.chooseNext(g, s);
-            g.setDir(next);
-
-            int nx = g.x() + next.dx;
-            int ny = g.y() + next.dy;
-
-            // Safety (should already be legal, but never hurts)
-            if (!s.isWall(nx, ny)) {
-                g.setPos(nx, ny);
-            }
-        }
-    }
-
 }
