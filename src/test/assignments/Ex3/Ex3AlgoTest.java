@@ -3,7 +3,7 @@ package assignments.Ex3;
 import exe.ex3.game.Game;
 import exe.ex3.game.GhostCL;
 import exe.ex3.game.PacmanGame;
-import main.java.assignments.Ex3.Ex3Algo;
+
 import org.junit.jupiter.api.Test;
 
 import java.awt.*;
