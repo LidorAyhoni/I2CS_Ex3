@@ -1,5 +1,6 @@
 package assignments.Ex3;
 
+
 public class Index2D implements Pixel2D {
     private final int __x, __y; //the object should not change(immutable)
 

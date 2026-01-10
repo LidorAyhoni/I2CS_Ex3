@@ -1,5 +1,6 @@
 package assignments.Ex3;
 
+
 import exe.ex3.game.Game;
 import exe.ex3.game.GhostCL;
 import exe.ex3.game.PacManAlgo;
@@ -69,13 +70,28 @@ public class Ex3Algo implements PacManAlgo {
 
 	/** Memory of recent positions to break loops. */
 	private static final int LOOP_MEM = 12;
+
+	private int prevW = -1, prevH = -1;
+
 	private final ArrayDeque<Long> lastPositions = new ArrayDeque<>();
 
+
 	public Ex3Algo() { _count = 0; }
+
 
 	@Override
 	public String getInfo() {
 		return "PacMan v11 (clean): escape-first, eat nearest fast (smart tie-break), smart power + POWER LOCK + NO GREEN first 5s.";
+	}
+
+	private void resetMemory() {
+		lastPositions.clear();
+		stuckCount = 0;
+		lastX = Integer.MIN_VALUE;
+		lastY = Integer.MIN_VALUE;
+		lastDir = Game.STAY;
+		baseWallValue = Integer.MIN_VALUE;
+		_count = 0;
 	}
 
 	/**
@@ -86,10 +102,17 @@ public class Ex3Algo implements PacManAlgo {
 	 */
 	@Override
 	public int move(PacmanGame game) {
-		_count++;
 		final int code = 0;
 
 		int[][] b = game.getGame(code);
+
+		if (b.length != prevW || b[0].length != prevH) {
+			prevW = b.length;
+			prevH = b[0].length;
+			resetMemory();
+		}
+		_count++;
+
 		if (!_inited) initColors(code);
 
 		if (baseWallValue == Integer.MIN_VALUE) {

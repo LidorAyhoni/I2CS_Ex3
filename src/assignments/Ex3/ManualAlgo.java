@@ -1,5 +1,6 @@
 package assignments.Ex3;
 
+
 import exe.ex3.game.PacManAlgo;
 import exe.ex3.game.PacmanGame;
 
