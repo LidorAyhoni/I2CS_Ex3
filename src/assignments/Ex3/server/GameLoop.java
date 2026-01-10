@@ -15,19 +15,22 @@ public class GameLoop {
     private final int dtMs;
 
     private final Random rnd = new Random();
+    private final InputController input;
 
-    public GameLoop(GameState s, Renderer renderer, int dtMs) {
+    public GameLoop(GameState s, Renderer renderer, InputController input, int dtMs) {
         this.s = s;
         this.renderer = renderer;
+        this.input = input;
         this.dtMs = dtMs;
     }
+
 
     public void run() {
         int steps = 0;
         int maxSteps = 20_000; // מספיק גדול
 
         while (!s.done && steps < maxSteps) {
-            Direction d = chooseAutoDirection();
+            Direction d = input.nextDirection();
             stepPacman(d);
             renderer.render(s);
 
