@@ -1,6 +1,5 @@
 package assignments.Ex3;
 
-import main.java.assignments.Ex3.Index2D;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
