@@ -7,35 +7,28 @@ import java.util.Random;
 public class GhostMovement {
     private final Random rnd = new Random();
 
-    public Direction chooseNext(Ghost g, boolean[][] passable) {
+    public Direction chooseNext(Ghost g, GameState s) {
         List<Direction> legal = new ArrayList<>();
+
         for (Direction d : new Direction[]{Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT}) {
-            int nx = g.x() + d.dx, ny = g.y() + d.dy;
-            if (inBounds(passable, nx, ny) && passable[nx][ny]) legal.add(d);
+            int nx = g.x() + d.dx;
+            int ny = g.y() + d.dy;
+            if (!s.isWall(nx, ny)) legal.add(d);
         }
+
         if (legal.isEmpty()) return Direction.STAY;
 
-        // Bias: keep direction if still legal
-        if (g.dir() != Direction.STAY) {
-            for (Direction d : legal) {
-                if (d == g.dir()) return d;
-            }
-        }
+        // Prefer continuing direction
+        if (legal.contains(g.dir())) return g.dir();
 
         // Avoid reverse if possible
         Direction rev = reverse(g.dir());
-        if (rev != Direction.STAY && legal.size() > 1) {
-            legal.remove(rev);
-        }
+        if (rev != Direction.STAY && legal.size() > 1) legal.remove(rev);
 
         return legal.get(rnd.nextInt(legal.size()));
     }
 
-    private static boolean inBounds(boolean[][] p, int x, int y) {
-        return x >= 0 && y >= 0 && x < p.length && y < p[0].length;
-    }
-
-    private static Direction reverse(Direction d) {
+    private Direction reverse(Direction d) {
         return switch (d) {
             case UP -> Direction.DOWN;
             case DOWN -> Direction.UP;
