@@ -10,6 +10,8 @@ public class MyServerMain {
         GameState s = LevelLoader.level0();
         Renderer r = new ConsoleRenderer();
 
+        r.init(800, s.w, s.h);
+
         GameLoop loop = new GameLoop(s, r, 120);
         loop.run();
 
