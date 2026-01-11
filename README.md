@@ -128,18 +128,13 @@ If java is not in PATH, run using the full path to the Java executable:
 "C:\Path\To\Java\bin\java.exe" -jar Ex3_PacMan_Lidor.jar
 ```
 ## 🧪 Testing
+The project includes a comprehensive JUnit 5 test suite covering:
+- Core data structures and enums
+- Game state and collision logic
+- AI movement sanity checks
+- Full game loop smoke tests
+- Level loading validation
 
-JUnit tests are included for core logic and algorithm components.
-
-The game was tested manually across:
-
-All 3 levels
-
-Manual mode
-
-AI mode
-
-Runtime toggling between AI and Manual
 
 ## 🎥 Demo Video
 
