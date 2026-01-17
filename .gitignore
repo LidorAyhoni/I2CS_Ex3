@@ -30,3 +30,12 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# build artifacts
+release/
+*.jar
+*.zip
+
+# course assets
+*.png
+*.bit

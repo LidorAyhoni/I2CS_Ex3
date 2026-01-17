@@ -165,6 +165,8 @@ JUnit tests are included (JUnit 5) covering:
 * AI movement sanity checks
 * game loop smoke tests
 
+The server was tested to run correctly both from IntelliJ and as a standalone JAR from an external folder.
+
 ---
 
 ## Demo Video
@@ -175,6 +177,12 @@ Gameplay + features demo (short):
 https://drive.google.com/file/d/17cYqks4-eDXt-K6LjcoXcQ0xNdk7t2Op/view?usp=drive_link
 ```
 
+---
+## Design Decisions
+
+* The server was implemented without external frameworks (no Maven/Gradle) to fully control the game loop.
+* AI logic was intentionally kept stateful to reduce oscillations and improve movement stability.
+* Stage 2 and Stage 3 share the same decision philosophy to demonstrate conceptual consistency.
 ---
 
 ## Author
