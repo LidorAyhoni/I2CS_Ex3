@@ -31,6 +31,3 @@ bin/
 ### Mac OS ###
 .DS_Store
 
-# course assets
-*.png
-*.bit
