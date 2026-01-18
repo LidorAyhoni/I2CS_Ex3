@@ -174,7 +174,7 @@ The server was tested to run correctly both from IntelliJ and as a standalone JA
 Gameplay + features demo (short):
 
 ```text
-https://drive.google.com/file/d/17cYqks4-eDXt-K6LjcoXcQ0xNdk7t2Op/view?usp=drive_link
+https://drive.google.com/file/d/1dQhrbTCxNG9XJBk_tBY1GcV7iI2hC5Wg/view?usp=sharing
 ```
 
 ---
