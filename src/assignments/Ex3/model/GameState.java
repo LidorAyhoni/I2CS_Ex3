@@ -31,13 +31,11 @@ public class GameState {
     public final int w, h;
     public final Tile[][] grid;
 
-    // Pac-Man position (kept public because you already use it; provide getters anyway)
     public int pacX, pacY;
 
     public int score = 0;
     public boolean done = false;
 
-    // Lives
     private int lives = 3;
 
     // Spawn points (deterministic reset)
@@ -250,41 +248,6 @@ public class GameState {
         } else {
             loseLife();
             if (!done) resetPositions();
-        }
-    }
-    private static void spawnGhostsNearPacman(GameState s, int count) {
-        int px = s.getPacmanX();
-        int py = s.getPacmanY();
-
-        int added = 0;
-        int radius = 1;
-
-        while (added < count && radius < Math.max(s.w, s.h)) {
-            for (int dx = -radius; dx <= radius && added < count; dx++) {
-                for (int dy = -radius; dy <= radius && added < count; dy++) {
-                    int x = px + dx;
-                    int y = py + dy;
-
-                    if (dx == 0 && dy == 0) continue;          // not on pacman
-                    if (!s.inBounds(x, y)) continue;
-                    if (s.isWall(x, y)) continue;
-
-                    // avoid placing two ghosts on same cell
-                    boolean occupied = false;
-                    for (Ghost g : s.getGhosts()) {
-                        if (g.x() == x && g.y() == y) { occupied = true; break; }
-                    }
-                    if (occupied) continue;
-
-                    s.addGhost(new Ghost(x, y));
-                    added++;
-                }
-            }
-            radius++;
-        }
-
-        if (added < count) {
-            throw new IllegalStateException("Could not find enough free cells to spawn ghosts");
         }
     }
     /**

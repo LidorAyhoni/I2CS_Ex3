@@ -126,7 +126,7 @@ Stage 3 includes a complete server-side Pac-Man game engine:
 ### Core components
 
 * **`model/`**: `GameState`, `Ghost`, `Tile`, `Direction`, collision rules, scoring, power mode, etc.
-* **`server/`**: `GameLoop`, `PacmanGameImpl` (adapter), `MyServerMain`
+* **`server/`**: `GameLoop`, `MyServerMain`
 * **`server/control/`**: manual input, AI provider, toggle provider
 * **`render/`**: `StdDrawRenderer` (graphics layer)
 * **`levels/`**: `LevelLoader` and built-in maps

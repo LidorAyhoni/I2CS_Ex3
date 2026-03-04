@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Ex3 Pac-Man algorithm (v11 cleaned).
+ * Ex3 Pac-Man algorithm implementation.
  *
  * <p>Priorities:
  * <ol>
@@ -81,7 +81,7 @@ public class Ex3Algo implements PacManAlgo {
 
 	@Override
 	public String getInfo() {
-		return "PacMan v11 (clean): escape-first, eat nearest fast (smart tie-break), smart power + POWER LOCK + NO GREEN first 5s.";
+		return "PacMan : escape-first, eat nearest fast (smart tie-break), smart POWER policy, loop handling.";
 	}
 
 	private void resetMemory() {
