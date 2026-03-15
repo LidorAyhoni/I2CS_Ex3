@@ -74,7 +74,7 @@ public class CollisionSystemTest {
         Ghost g = new Ghost(2, 2);
         s.addGhost(g);
 
-        // easiest way to ensure eatable=true in your design: power mode
+        // easiest way to ensure eatable=true
         s.activatePower(5);
         assertTrue(g.isEatable());
 
@@ -84,7 +84,7 @@ public class CollisionSystemTest {
         cs.resolve(s);
 
         assertEquals(livesBefore, s.getLives());
-        assertEquals(200, s.getScore());  // your GameState gives 200 on eat
+        assertEquals(200, s.getScore());  //GameState gives 200 on eat
     }
 
     @Test

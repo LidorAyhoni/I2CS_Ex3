@@ -31,7 +31,7 @@ public class GameStateTest {
         return g;
     }
 
-    // ---------- ctor / basic getters ----------
+    // ---------- constructor / basic getters ----------
 
     @Test
     public void ctor_valid_initializesFields() {

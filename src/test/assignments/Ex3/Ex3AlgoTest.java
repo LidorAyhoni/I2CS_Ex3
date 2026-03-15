@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class Ex3AlgoTest {
 
-    // ---- Fake minimal game/ghost objects (only what Ex3Algo uses) ----
 
     private static class FakeGhost implements GhostCL {
         private final String pos;
@@ -112,7 +111,6 @@ public class Ex3AlgoTest {
         // implement them as stubs (throw UnsupportedOperationException or return defaults).
     }
 
-    // ---- Helpers to build boards that match Ex3Algo's color expectations ----
 
     private static int PINK_DOT() { return Game.getIntColor(Color.PINK, 0); }
     private static int GREEN_POWER() { return Game.getIntColor(Color.GREEN, 0); }
